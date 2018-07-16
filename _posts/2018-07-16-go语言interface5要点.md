@@ -16,7 +16,7 @@ tags:
 
 ## 正文
 
-###1、interface 是一种类型
+### 1、interface 是一种类型
 ```
 type I interface {
     Get() int
@@ -28,7 +28,7 @@ type I interface {
 
 如果一个类型实现了一个 **interface** 中所有方法，我们说类型实现了该 **interface**，所以所有类型都实现了 **empty interface**，因为任何一种类型至少实现了 0 个方法。go 没有显式的关键字用来实现 **interface**，只需要实现 **interface** 方法即可。
 
-###2、interface 变量存储的是实现者的值
+### 2、interface 变量存储的是实现者的值
 ```
 //1
 type I interface {    
@@ -71,7 +71,7 @@ fmt.Println(i.Get())
 ```
 不难看出 **interface** 的变量中存储的是实现了 interface 的类型的对象值，这种能力是 **duck typing**。在使用 **interface** 时不需要显式在 **struct** 上声明要实现哪个 **interface** ，只需要实现对应 **interface** 中的方法即可，**go** 会自动进行 **interface** 的检查，并在运行时执行从其他类型到 **interface** 的自动转换，即使实现了多个 **interface**，**go** 也会在使用对应 **interface** 时实现自动转换，这就是 **interface** 的魔力所在。
 
-###3、如何判断 interface 变量存储的是哪种类型
+### 3、如何判断 interface 变量存储的是哪种类型
 
 一个 **interface** 被多种类型实现时，有时候我们需要区分 **interface** 的变量究竟存储哪种类型的值，**go** 可以使用 **comma**, **ok** 的形式做区分 **value, ok := em.(T)**：**em** 是 **interface** 类型的变量，**T**代表要断言的类型，**value** 是 **interface** 变量存储的值，**ok** 是 **bool** 类型表示是否为该断言的类型 **T**。
 ```
@@ -90,7 +90,7 @@ case *R:
     fmt.Println("i store *R", t)
 }
 ```
-###4、空的 interface
+### 4、空的 interface
 
 **interface{}** 是一个空的 **interface** 类型，根据前文的定义：一个类型如果实现了一个 **interface** 的所有方法就说该类型实现了这个 **interface**，空的 **interface** 没有方法，所以可以认为所有的类型都实现了 **interface{}**。如果定义一个函数参数是 **interface{}** 类型，这个函数应该可以接受任何类型作为它的参数。
 ```
@@ -114,7 +114,7 @@ func main(){
 ```
 上面的代码是按照我们的假设修改的，执行之后竟然会报 **cannot use names (type []string) as type []interface {} in argument to printAll** 错误，**why？**
 
-这个错误说明 **go** 没有帮助我们自动把 **slice** 转换成 **interface{** 类型的 **slice**，所以出错了。**go** 不会对 类型是**interface{}** 的 **slice** 进行转换 。为什么 **go** 不帮我们自动转换，一开始我也很好奇，最后终于在 **go** 的 **wiki** 中找到了答案 https://github.com/golang/go/wiki/InterfaceSlice 大意是 **interface{}** 会占用两个字长的存储空间，一个是自身的 **methods** 数据，一个是指向其存储值的指针，也就是 **interface** 变量存储的值，因而 **slice** **[]interface{}** 其长度是固定的**N*2**，但是 **[]T** 的长度是** N*sizeof(T)**，两种 **slice** 实际存储值的大小是有区别的(文中只介绍两种 **slice** 的不同，至于为什么不能转换猜测可能是 runtime 转换代价比较大)。
+这个错误说明 **go** 没有帮助我们自动把 **slice** 转换成 **interface{** 类型的 **slice**，所以出错了。**go** 不会对 类型是**interface{}** 的 **slice** 进行转换 。为什么 **go** 不帮我们自动转换，一开始我也很好奇，最后终于在 **go** 的 **wiki** 中找到了答案 [InterfaceSlice](https://github.com/golang/go/wiki/InterfaceSlice)大意是 **interface{}** 会占用两个字长的存储空间，一个是自身的 **methods** 数据，一个是指向其存储值的指针，也就是 **interface** 变量存储的值，因而 **slice** **[]interface{}** 其长度是固定的**N*2**，但是 **[]T** 的长度是** N*sizeof(T)**，两种 **slice** 实际存储值的大小是有区别的(文中只介绍两种 **slice** 的不同，至于为什么不能转换猜测可能是 runtime 转换代价比较大)。
 
 但是我们可以手动进行转换来达到我们的目的。
 ```
@@ -124,7 +124,7 @@ for i, d := range dataSlice {
 	interfaceSlice[i] = d
 }
 ```
-###5、interface 的实现者的 receiver 如何选择
+### 5、interface 的实现者的 receiver 如何选择
 
 在我们上文的例子中调用 **f** 是 **f(&s)** 也就是 **S** 的指针类型，为什么不能是 **f(s)** 呢，如果是 **s** 会有什么问题？改成 **f(s)** 然后执行代码。
 
@@ -172,7 +172,6 @@ func main(){
 
 对于 **receiver** 是 **value** 的 **method**，任何在 **method** 内部对 **value** 做出的改变都不影响调用者看到的 **value**，这就是按值传递。
 
-另一个说明上述现象的例子是这样的来自 https://play.golang.org/p/TvR758rfre
 ```
 package main
 
