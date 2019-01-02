@@ -1,0 +1,192 @@
+﻿---
+layout:     post
+title:      text/template包与Cobra
+subtitle:   Levenshtein distance
+date:       2018-11-02
+author:     BY
+header-img: img/post-bg-universe.jpg
+catalog: true
+tags:
+    - Blog
+---
+
+
+## 前言
+
+今天是11月的第二天，把10月玩的太狠，本想昨天写一篇。  
+windows文件名不能包含'/'，这篇名字姑且叫这个吧。  
+
+## 正文
+
+### 问题来源
+
+最近在看etcd相关的源码，其中该源码用到cobra框架，看cobra的时候看到使用到了text/template包。  
+
+### 描述
+
+简单来说，模板就是将一组文本嵌入另一组文本里  
+
+##### 官方示例
+
+在$GOROOT/src/text/template目录下，以test.go结尾的文件。建议阅读example_test.go。  
+官方文档描述[package template](https://golang.org/pkg/text/template/)  
+template包实现数据驱动模板以生成文本输出。  
+要生成HTML输出，请参阅html/template包，它与此包具有相同的接口，但会自动保护HTML输出免受某些攻击。  
+通过将模板应用于数据结构来执行模板。模板中的注释引用数据结构的元素（通常是结构的字段或映射中的键）来控制执行并派生要显示的值。执行模板遍历结构并设置光标，由句点'.'表示。并且在执行过程中将“dot”称为结构中当前位置的值。  
+模板的输入文本是任何格式的UTF-8编码文本。 “Actions” - 数据评估或控制结构 - 由“{{”和“}}”分隔;所有文本外部操作都将不变地复制到输出中。除了原始字符串之外，虽然注释可以，但操作可能不会跨越换行符。  
+一旦解析，模板可以安全地并行执行，但是如果并行执行共享Writer，则输出可以是交错的。  
+
+##### 简单用法 ：
+示例代码
+```
+type Inventory struct {
+	Material string
+	Count    uint
+}
+sweaters := Inventory{"wool", 17}
+tmpl, err := template.New("test").Parse("{{.Count}} items are made of {{.Material}}")//{{ }}中的字段对应结构体中的字段
+if err != nil { panic(err) }
+err = tmpl.Execute(os.Stdout, sweaters)//将替换的结果输出到标准输出
+if err != nil { panic(err) }
+```
+输出：  
+``` 
+17 items are made of wool
+```
+Go语言的模板通过{{}}来包含需要在渲染时被替换的字段，{{.}}表示当前的对象，这和Java或者C++中的this类似，如果要访问当前对象的字段通过{{.FieldName}},但是需要注意一点：这个字段必须是导出的(字段首字母必须是大写的),否则在渲染的时候就会报错  
+
+##### 高级用法 ：
+
+与EL表达式类似，template也支持if分支判断，循环输出。    
+那么如果字段里面还有对象，如何来循环的输出这些内容呢？我们可以使用{{if …}}…{{end}}、{{with …}}…{{end}}和{{range …}}{{end}}来进行数据的输出。  
+if和with的区别在于： if不仅认为对象为空作为false，还将其判断的对象值为false或0,或者该对象长度为0都认为是false。（ The empty values are false, 0, any nil pointer or interface value, and any array, slice, map, or string of length zero.）  
+而with则仅将对象为空作为false。 
+```
+type Friend struct {
+    Fname string
+}
+
+type Person struct {
+    UserName string
+    Emails   []string
+    Friends  []*Friend
+}
+
+func main() {
+    f1 := Friend{Fname: "minux.ma"}
+    f2 := Friend{Fname: "xushiwei"}
+    t := template.New("fieldname example")
+    t, _ = t.Parse(`hello {{.UserName}}!
+{{range .Emails}}an email {{.}}
+{{end}}{{with .Friends}}{{range .}}my friend name is {{.Fname}}
+{{end}}{{end}}`)
+    p := Person{UserName: "Astaxie",
+        Emails:  []string{"astaxie@beego.me", "astaxie@gmail.com"},
+        Friends: []*Friend{&f1, &f2}}
+    t.Execute(os.Stdout, p)
+}
+```
+一个人有多个朋友和邮箱，尝试解析。
+输出
+```
+hello Astaxie!
+an email astaxie@beego.me
+an email astaxie@gmail.com
+my friend name is minux.ma
+my friend name is xushiwei
+```
+注意：Parse里入参string中的回车和空格都会被正常输出。
+
+模板函数：
+
+模板在输出对象的字段值时，采用了fmt包把对象转化成了字符串。但是有时候我们的需求可能不是这样的，例如有时候我们为了防止垃圾邮件发送者通过采集网页的方式来发送给我们的邮箱信息，我们希望把@替换成at例如：astaxie at beego.me，如果要实现这样的功能，我们就需要自定义函数来做这个功能。  
+我们可以通过下面的方式来注册函数  
+```
+type FuncMap map[string]interface{}//string为{{ }}里匹配的自定义函数名
+t = t.Funcs(FuncMap) //t为*Template类型
+```
+例如Cobra中有
+```
+"{{rpad .Name .NamePadding }}"字符串  //(1) .Name和.NamePadding模板函数的参数，rpad与(2)处的"rpad"字符串对应
+
+var templateFuncs = template.FuncMap{
+... //省略
+	"rpad":                    rpad, //(2) key中"rpad"与(1)对应，value中rpad与（3）处函数名对应
+... //省略
+}
+
+// rpad adds padding to the right of a string.
+func rpad(s string, padding int) string { //(3)
+	template := fmt.Sprintf("%%-%ds", padding)
+	return fmt.Sprintf(template, s)
+}
+
+// tmpl executes the given template text on data, writing the result to w.
+func tmpl(w io.Writer, text string, data interface{}) error {
+	t := template.New("top")
+	t.Funcs(templateFuncs)
+	template.Must(t.Parse(text))
+	return t.Execute(w, data)
+}
+```
+golang中预先定义了全局的模板函数，这些函数可以查询文档，直接使用。可以在$GOROOT/src/text/template/funcs.go查看源码。
+
+嵌套模板：
+
+我们平常开发Web应用的时候，经常会遇到一些模板有些部分是固定不变的，然后可以抽取出来作为一个独立的部分，例如一个博客的头部和尾部是不变的，而唯一改变的是中间的内容部分。所以我们可以定义成header、content、footer三个部分。Go语言中通过如下的语法来申明  
+```
+{{define "子模板名称"}}内容{{end}}
+```
+通过如下方式来调用：  
+```
+{{template "子模板名称"}}
+```
+接下来我们演示如何使用嵌套模板，我们定义三个文件，header.tmpl、content.tmpl、footer.tmpl文件，里面的内容如下  
+```
+//header.tmpl
+{{define "header"}}
+<html>
+<head>
+    <title>演示信息</title>
+</head>
+<body>
+{{end}}
+
+//content.tmpl
+{{define "content"}}
+{{template "header"}}
+<h1>演示嵌套</h1>
+<ul>
+    <li>嵌套使用define定义子模板</li>
+    <li>调用使用template</li>
+</ul>
+{{template "footer"}}
+{{end}}
+
+//footer.tmpl
+{{define "footer"}}
+</body>
+</html>
+{{end}}
+```
+演示代码如下：  
+```
+func main() {
+    s1, _ := template.ParseFiles("header.tmpl", "content.tmpl", "footer.tmpl")
+    s1.ExecuteTemplate(os.Stdout, "header", nil)
+    fmt.Println()
+    s1.ExecuteTemplate(os.Stdout, "content", nil)
+    fmt.Println()
+    s1.ExecuteTemplate(os.Stdout, "footer", nil)
+    fmt.Println()
+    s1.Execute(os.Stdout, nil)
+}
+```
+通过上面的例子我们可以看到通过template.ParseFiles把所有的嵌套模板全部解析到模板里面，其实每一个定义的都是一个独立的模板，他们相互独立，是并行存在的关系，内部其实存储的是类似map的一种关系(key是模板的名称，value是模板的内容)，然后我们通过ExecuteTemplate来执行相应的子模板内容，我们可以看到header、footer都是相对独立的，都能输出内容，content 中因为嵌套了header和footer的内容，就会同时输出三个的内容。但是当我们执行s1.Execute，没有任何的输出，因为在默认的情况下没有默认的子模板，所以不会输出任何的东西。
+
+#### 总结：
+
+动态数据与模板融合：如何输出循环数据、如何自定义函数、如何嵌套模板等等。
+
+## 结语
+不要懒，多看多写。
